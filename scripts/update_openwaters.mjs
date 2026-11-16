@@ -42,8 +42,13 @@ function buildNoaaGrid(stations) {
 function duplicatesNoaa(station, grid) {
   const latCell = Math.floor(station.latitude * 100);
   const lonCell = Math.floor(station.longitude * 100);
+  const lonCells = Math.min(
+    18000,
+    Math.ceil(DUPLICATE_RADIUS_KM /
+      (111.32 * Math.max(Math.cos(station.latitude * Math.PI / 180), 0.01)) * 100)
+  );
   for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
+    for (let dx = -lonCells; dx <= lonCells; dx++) {
       for (const noaa of grid.get(`${latCell + dy}:${lonCell + dx}`) || []) {
         if (distanceKm(
           station.latitude, station.longitude,
