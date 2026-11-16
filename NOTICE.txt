@@ -1,0 +1,1 @@
+Tide prediction data is retrieved from NOAA CO-OPS public APIs. Map tiles are provided by OpenStreetMap contributors. Leaflet and Leaflet.markercluster are loaded from public CDNs and remain subject to their respective licenses. This project is an independent SurferToday implementation and is not an official NOAA product.
