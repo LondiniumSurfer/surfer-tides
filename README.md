@@ -8,7 +8,7 @@ A static Leaflet map combining NOAA CO-OPS tide-prediction stations with commerc
 2. Under **Build and deployment**, choose **GitHub Actions** as the source.
 3. Open **Actions → Refresh NOAA and Open Waters tide predictions → Run workflow**.
 4. The workflow downloads NOAA predictions, calculates Open Waters harmonic predictions, and commits the refreshed JSON data.
-5. The deployment workflow publishes the map at `https://londiniumsurfer.github.io/surfer-tides/`.
+5. The deployment workflow publishes the map at `https://surfertoday.github.io/surfer-tides/`.
 
 The refresh is scheduled daily at 03:17 UTC and can also be started manually.
 
@@ -18,7 +18,7 @@ After GitHub Pages has deployed successfully, add this iframe to a Joomla Custom
 
 ```html
 <iframe
-  src="https://londiniumsurfer.github.io/surfer-tides/"
+  src="https://surfertoday.github.io/surfer-tides/"
   title="SurferToday Global Tide Stations"
   width="100%"
   height="760"
