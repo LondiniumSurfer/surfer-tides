@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Tide Stations | SurferToday</title>
-  <meta name="description" content="Explore NOAA tide stations around the world and view upcoming high and low tide predictions.">
+  <meta name="description" content="Explore NOAA and international tide stations with upcoming high and low tide predictions.">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -19,7 +19,7 @@
     .toolbar button { padding:10px 13px; border:1px solid #b8c2cc; background:#fff; border-radius:5px; cursor:pointer; font-size:14px; }
     .toolbar button.active { background:#183b56; border-color:#183b56; color:#fff; }
     .status { margin-left:auto; font-size:12px; color:#59636e; }
-    #map { width:100%; height: min(76vh, 780px); min-height:520px; border:1px solid #e5e7eb; z-index:1; }
+    #map { width:100%; height:min(76vh,780px); min-height:520px; border:1px solid #e5e7eb; z-index:1; }
     .map-note { padding:8px 11px; font-size:12px; line-height:1.5; color:#626b75; border:1px solid #e5e7eb; border-top:0; }
     .popup-title { font-weight:700; font-size:15px; margin-bottom:4px; }
     .popup-meta { color:#667085; font-size:12px; margin-bottom:8px; }
@@ -27,6 +27,7 @@
     .tide-table th,.tide-table td { padding:5px 7px; border-bottom:1px solid #e5e7eb; text-align:left; }
     .tide-table th { background:#f8fafc; }
     .tide-error { color:#9a3412; font-size:12px; line-height:1.45; }
+    .attribution { margin-top:9px; padding-top:7px; border-top:1px solid #e5e7eb; color:#667085; font-size:10px; line-height:1.4; }
     .leaflet-popup-content { min-width:230px; }
     @media (max-width:600px) {
       #map { height:68vh; min-height:430px; }
@@ -37,16 +38,17 @@
 <body>
 <div class="tide-app">
   <div class="toolbar">
-    <input id="station-search" type="search" placeholder="Search station name, NOAA ID or region…" aria-label="Search tide stations">
+    <input id="station-search" type="search" placeholder="Search station, NOAA ID, country or region…" aria-label="Search tide stations">
     <button id="time-local" class="active" type="button">My local time</button>
     <button id="time-utc" type="button">UTC</button>
     <span id="status" class="status">Loading station data…</span>
   </div>
   <div id="map" role="application" aria-label="Interactive global tide station map"></div>
   <div class="map-note">
-    Tide predictions supplied by NOAA CO-OPS. Times are shown in your browser's local time or UTC.
-    Heights are in metres relative to the datum identified for each station. Predictions are forecasts,
-    not live water-level observations. Map tiles © OpenStreetMap contributors.
+    Tide predictions combine NOAA CO-OPS official predictions with harmonic predictions calculated using the Open Waters Slackwater database and engine.
+    Times are shown in your browser's local time or UTC. Heights are in metres relative to the datum identified for each station.
+    Predictions are astronomical forecasts, not live water-level observations, and do not account for weather or storm surge.
+    Map tiles © OpenStreetMap contributors.
   </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -61,103 +63,114 @@
   }).addTo(map);
 
   const clusters = L.markerClusterGroup({
-    chunkedLoading: true,
-    maxClusterRadius: 48,
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false
+    chunkedLoading: true, maxClusterRadius: 48,
+    spiderfyOnMaxZoom: true, showCoverageOnHover: false
   });
   map.addLayer(clusters);
 
   let allStations = [];
   let useLocalTime = true;
   let markerById = new Map();
-
   const status = document.getElementById('status');
   const search = document.getElementById('station-search');
+
+  function esc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
 
   function formatTime(iso) {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
-    const options = useLocalTime ? {
-      dateStyle: 'medium', timeStyle: 'short'
-    } : {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: 'numeric', minute: '2-digit',
-      timeZone: 'UTC', timeZoneName: 'short'
-    };
+    const options = useLocalTime
+      ? { dateStyle: 'medium', timeStyle: 'short' }
+      : { year:'numeric', month:'short', day:'numeric', hour:'numeric',
+          minute:'2-digit', timeZone:'UTC', timeZoneName:'short' };
     return new Intl.DateTimeFormat(undefined, options).format(date);
   }
 
-  function popupHtml(s) {
-    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[c]));
-    const location = [s.state].filter(Boolean).join(', ');
-    let html = `<div class="popup-title">${esc(s.name)}</div>
-      <div class="popup-meta">NOAA station ${esc(s.id)}${location ? ' · ' + esc(location) : ''}</div>`;
-    if (s.predictions && s.predictions.length) {
-      html += `<div class="popup-meta">Datum: ${esc(s.datum || 'Not specified')} · Heights: metres</div>
+  function popupHtml(station) {
+    const isNoaa = station.source === 'NOAA CO-OPS Data API' || station.source === 'NOAA';
+    const sourceName = station.source || (isNoaa ? 'NOAA CO-OPS' : 'Open Waters');
+    const stationCode = isNoaa ? `NOAA station ${station.id}` : `${sourceName} · ${station.source_id || station.id}`;
+    const place = [station.locality, station.region, station.country, station.state]
+      .filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(', ');
+    let html = `<div class="popup-title">${esc(station.name)}</div>
+      <div class="popup-meta">${esc(stationCode)}${place ? ' · ' + esc(place) : ''}</div>`;
+    if (station.predictions?.length) {
+      html += `<div class="popup-meta">Datum: ${esc(station.datum || 'Not specified')} · Heights: metres</div>
         <table class="tide-table"><thead><tr><th>Tide</th><th>Time</th><th>Height</th></tr></thead><tbody>`;
-      for (const p of s.predictions) {
-        html += `<tr><td>${esc(p.kind)}</td><td>${esc(formatTime(p.time_utc))}</td><td>${Number(p.height_m).toFixed(2)} m</td></tr>`;
+      for (const prediction of station.predictions) {
+        const height = Number(prediction.height_m);
+        html += `<tr><td>${esc(prediction.kind)}</td><td>${esc(formatTime(prediction.time_utc))}</td><td>${Number.isFinite(height) ? height.toFixed(2) + ' m' : '—'}</td></tr>`;
       }
       html += '</tbody></table>';
-    } else if (s.error) {
-      html += `<div class="tide-error">NOAA prediction unavailable for this station. ${esc(s.error)}</div>`;
+    } else if (station.error) {
+      html += `<div class="tide-error">Prediction unavailable. ${esc(station.error)}</div>`;
     } else {
       html += '<div class="popup-meta">No high/low predictions returned for the current forecast window.</div>';
+    }
+    if (station.attribution) {
+      html += `<div class="attribution">${esc(station.attribution)}</div>`;
     }
     return html;
   }
 
-  function addStations(stations) {
+  function addStations(stations, fit = false) {
     clusters.clearLayers();
     markerById.clear();
     const bounds = [];
-    for (const s of stations) {
-      if (!Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lon))) continue;
-      const marker = L.circleMarker([Number(s.lat), Number(s.lon)], {
-        radius: 5, color: '#174a6e', weight: 1, fillColor: '#2c87b8', fillOpacity: 0.85
+    for (const station of stations) {
+      const lat = Number(station.lat), lon = Number(station.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const isNoaa = station.source === 'NOAA CO-OPS Data API' || station.source === 'NOAA';
+      const marker = L.circleMarker([lat, lon], {
+        radius: isNoaa ? 5 : 5.5,
+        color: isNoaa ? '#174a6e' : '#80612b',
+        weight: 1,
+        fillColor: isNoaa ? '#2c87b8' : '#d5a441',
+        fillOpacity: 0.88
       });
-      marker.bindPopup(() => popupHtml(s), { maxWidth: 340 });
-      marker.stationData = s;
+      marker.bindPopup(() => popupHtml(station), { maxWidth: 360 });
+      marker.stationData = station;
       clusters.addLayer(marker);
-      markerById.set(String(s.id), marker);
-      bounds.push([Number(s.lat), Number(s.lon)]);
+      markerById.set(String(station.id), marker);
+      bounds.push([lat, lon]);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [12, 12], maxZoom: 3 });
+    if (fit && bounds.length) map.fitBounds(bounds, { padding:[12,12], maxZoom:3 });
   }
 
   function setTimeMode(local) {
     useLocalTime = local;
     document.getElementById('time-local').classList.toggle('active', local);
     document.getElementById('time-utc').classList.toggle('active', !local);
-    const open = map._popup;
-    if (open && open._source && open._source.stationData) {
-      open.setContent(popupHtml(open._source.stationData));
+    const popup = map._popup;
+    if (popup && popup._source?.stationData) {
+      popup.setContent(popupHtml(popup._source.stationData));
     }
   }
   document.getElementById('time-local').addEventListener('click', () => setTimeMode(true));
   document.getElementById('time-utc').addEventListener('click', () => setTimeMode(false));
 
-  search.addEventListener('keydown', event => {
-    if (event.key !== 'Enter') return;
-    const q = search.value.trim().toLowerCase();
-    if (!q) { addStations(allStations); return; }
-    const matches = allStations.filter(s =>
-      String(s.name).toLowerCase().includes(q) ||
-      String(s.id).toLowerCase().includes(q) ||
-      String(s.state).toLowerCase().includes(q)
-    );
+  function applySearch() {
+    const query = search.value.trim().toLowerCase();
+    const matches = !query ? allStations : allStations.filter(station => [
+      station.name, station.id, station.state, station.locality, station.region,
+      station.country, station.continent, station.source, station.source_id
+    ].some(value => String(value || '').toLowerCase().includes(query)));
     addStations(matches);
     status.textContent = `${matches.length.toLocaleString()} matching stations`;
-    if (matches.length === 1) {
+    if (query && matches.length === 1) {
       const marker = markerById.get(String(matches[0].id));
       if (marker) {
         clusters.zoomToShowLayer(marker, () => marker.openPopup());
         map.setView(marker.getLatLng(), 8);
       }
     }
+  }
+  search.addEventListener('keydown', event => {
+    if (event.key === 'Enter') applySearch();
   });
   search.addEventListener('input', () => {
     if (!search.value.trim()) {
@@ -166,20 +179,33 @@
     }
   });
 
-  fetch('./data/tides.json', { cache: 'no-store' })
-    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then(data => {
-      allStations = data.stations || [];
-      addStations(allStations);
-      const updated = data.generated_at_utc
-        ? `Updated ${formatTime(data.generated_at_utc)}`
-        : 'Initial setup: run the GitHub Actions refresh';
-      status.textContent = `${allStations.length.toLocaleString()} stations · ${updated}`;
+  Promise.all([
+    fetch('./data/tides.json', { cache:'no-store' }).then(response => {
+      if (!response.ok) throw new Error(`NOAA data: HTTP ${response.status}`);
+      return response.json();
+    }),
+    fetch('./data/openwaters-tides.json', { cache:'no-store' }).then(response => {
+      if (!response.ok) throw new Error(`Open Waters data: HTTP ${response.status}`);
+      return response.json();
     })
-    .catch(err => {
-      status.textContent = 'Could not load tide station data';
-      console.error(err);
-    });
+  ]).then(([noaa, openwaters]) => {
+    const noaaStations = (noaa.stations || []).map(station => ({
+      ...station, source:'NOAA CO-OPS Data API',
+      attribution:'NOAA CO-OPS public-domain data.'
+    }));
+    const internationalStations = (openwaters.stations || []).map(station => ({
+      ...station, source:station.source || 'Open Waters'
+    }));
+    allStations = [...noaaStations, ...internationalStations];
+    addStations(allStations, true);
+    const latest = [noaa.generated_at_utc, openwaters.generated_at_utc]
+      .filter(Boolean).sort().at(-1);
+    const updated = latest ? formatTime(latest) : 'not available';
+    status.textContent = `${allStations.length.toLocaleString()} stations · updated ${updated}`;
+  }).catch(error => {
+    status.textContent = 'Could not load one or more station datasets';
+    console.error(error);
+  });
 })();
 </script>
 </body>
