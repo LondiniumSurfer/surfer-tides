@@ -36,7 +36,7 @@ jobs:
       - name: Fetch NOAA predictions
         run: python scripts/update_tides.py --delay 1.5 --hours 48
       - name: Install Open Waters prediction packages
-        run: npm install --no-save @slackwater/database@1.0.2-beta.0 @slackwater/engine@1.0.0-beta.13
+        run: npm install --no-save @slackwater/database@1.0.1-beta.20261107 @slackwater/engine@1.0.0-beta.13
       - name: Calculate licensed Open Waters predictions
         run: node scripts/update_openwaters.mjs
       - name: Commit refreshed tide data
