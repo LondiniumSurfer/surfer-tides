@@ -141,7 +141,8 @@ async function main() {
         source_url: station.source?.url || "",
         datum,
         predictions: events,
-        attribution: station.attribution || "Slackwater database (https://github.com/openwatersio/slackwater-database)",
+        attribution: [...new Set([station.attribution, modelStation.attribution].filter(Boolean))].join(" ") ||
+          "Slackwater database (https://github.com/openwatersio/slackwater-database)",
         license: station.license.type,
         license_url: station.license.url,
         model_type: station.type
