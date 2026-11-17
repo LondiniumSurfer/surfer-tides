@@ -89,6 +89,8 @@ jobs:
               git add -A
               git commit -m "Refresh global tide predictions and clean dependencies" || true
               git push
+            fi
+          fi
 
       # GITHUB_TOKEN pushes do not trigger other workflows. Deploy Pages here
       # so every successful data refresh publishes the exact generated files.
@@ -101,5 +103,3 @@ jobs:
       - name: Deploy live tide map
         id: deployment
         uses: actions/deploy-pages@v4
-            fi
-          fi
