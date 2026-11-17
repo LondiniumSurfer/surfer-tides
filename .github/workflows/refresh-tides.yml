@@ -35,11 +35,17 @@ jobs:
           node-version: "22"
       - name: Fetch NOAA predictions
         run: python scripts/update_tides.py --delay 1.5 --hours 48
-      - name: Install Open Waters prediction packages
-        run: npm install --no-save @slackwater/database@1.0.1-beta.20261107 @slackwater/engine@1.0.0-beta.13
+      - name: Install Open Waters prediction packages outside the repository
+        run: |
+          rm -rf node_modules
+          npm install --prefix "$RUNNER_TEMP/slackwater" --no-save --no-package-lock @slackwater/database@1.0.1-beta.20261107 @slackwater/engine@1.0.0-beta.13
+          ln -s "$RUNNER_TEMP/slackwater/node_modules" "$GITHUB_WORKSPACE/node_modules"
       - name: Calculate licensed Open Waters predictions
         run: node scripts/update_openwaters.mjs
-      - name: Commit refreshed tide data
+      - name: Remove temporary dependency link
+        if: always()
+        run: rm -f node_modules
+      - name: Commit refreshed tide data and dependency cleanup
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -47,6 +53,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No data changes to commit."
           else
-            git commit -m "Refresh global tide predictions"
+            git commit -m "Refresh global tide predictions and clean dependencies"
             git push
           fi
