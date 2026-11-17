@@ -6,9 +6,8 @@
  */
 import fs from "node:fs/promises";
 import { loadStations } from "@slackwater/database";
-import { useStation } from "@slackwater/engine";
+import { createTidePredictor } from "@slackwater/engine";
 
-const ROOT = new URL("../", import.meta.url);
 const SITE_DATA = new URL("../site/data/", import.meta.url);
 const NOAA_FILE = new URL("../site/data/tides.json", import.meta.url);
 const OUTPUT = new URL("../site/data/openwaters-tides.json", import.meta.url);
@@ -68,14 +67,31 @@ function getDatum(station) {
   return undefined;
 }
 
+function getModelStation(station, byId) {
+  if (station.harmonic_constituents?.length) return station;
+  const referenceId = station.offsets?.reference;
+  if (!referenceId) return undefined;
+  return byId(referenceId);
+}
+
+function getPredictionDatum(modelStation, requestedDatum) {
+  const datum = requestedDatum && typeof modelStation.datums?.[requestedDatum] === "number"
+    ? requestedDatum
+    : getDatum(modelStation);
+  if (!datum) return undefined;
+  const msl = modelStation.datums?.MSL;
+  const datumLevel = modelStation.datums?.[datum];
+  if (typeof msl !== "number" || typeof datumLevel !== "number") return undefined;
+  return { datum, offset: msl - datumLevel };
+}
+
 async function main() {
   const now = new Date();
   now.setSeconds(0, 0);
   const end = new Date(now.getTime() + HOURS * 60 * 60 * 1000);
 
   const noaaDocument = JSON.parse(await fs.readFile(NOAA_FILE, "utf8"));
-  const noaaStations = noaaDocument.stations || [];
-  const noaaGrid = buildNoaaGrid(noaaStations);
+  const noaaGrid = buildNoaaGrid(noaaDocument.stations || []);
 
   console.log("Loading Open Waters station database...");
   const db = await loadStations();
@@ -90,11 +106,12 @@ async function main() {
   let excludedNoaa = 0;
   let skipped = 0;
   let errors = 0;
+  let subordinateCount = 0;
+  const errorExamples = [];
 
   for (let index = 0; index < accepted.length; index++) {
     const station = accepted[index];
 
-    // NOAA is already refreshed through its own official API workflow.
     if (station.source?.name?.toUpperCase() === "NOAA" ||
         station.id?.startsWith("noaa/") ||
         duplicatesNoaa(station, noaaGrid)) {
@@ -102,30 +119,53 @@ async function main() {
       continue;
     }
 
-    const datum = getDatum(station);
-    if (!datum || !Array.isArray(station.harmonic_constituents) ||
-        station.harmonic_constituents.length === 0) {
-      skipped++;
-      continue;
-    }
-
     try {
-      const predictor = useStation(station);
-      const prediction = predictor.getExtremesPrediction({
-        start: now,
-        end,
-        datum,
-        units: "meters",
-        nodeCorrections: station.node_corrections
+      const modelStation = getModelStation(station, db.byId);
+      if (!modelStation ||
+          modelStation.license?.commercial_use !== true ||
+          modelStation.kind !== "tide" ||
+          !Array.isArray(modelStation.harmonic_constituents) ||
+          modelStation.harmonic_constituents.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      const datumInfo = getPredictionDatum(modelStation, getDatum(station));
+      if (!datumInfo) {
+        skipped++;
+        continue;
+      }
+
+      const predictor = createTidePredictor(modelStation.harmonic_constituents, {
+        offset: datumInfo.offset,
+        nodeCorrections: modelStation.node_corrections || "iho",
+        definitions: modelStation.constituent_definitions
       });
 
-      const events = prediction.extremes
+      // Subordinate offsets are stored on the target station and applied to
+      // the reference model's predicted highs/lows by the Slackwater engine.
+      const offsets = station.id === modelStation.id ? undefined : {
+        height: station.offsets?.height,
+        time: station.offsets?.time
+      };
+      const extremes = predictor.getExtremesPrediction({
+        start: now,
+        end,
+        offsets
+      });
+
+      const events = extremes
         .filter(event => event.time >= now && event.time <= end)
         .map(event => ({
           time_utc: event.time.toISOString(),
           kind: event.high ? "High" : "Low",
           height_m: Number(event.level.toFixed(4))
         }));
+
+      const attribution = [...new Set([
+        station.attribution,
+        modelStation.id !== station.id ? modelStation.attribution : ""
+      ].filter(Boolean))].join(" ");
 
       output.push({
         id: station.id,
@@ -139,24 +179,25 @@ async function main() {
         source: station.source?.name || "Open Waters",
         source_id: String(station.source?.id ?? ""),
         source_url: station.source?.url || "",
-        datum,
+        datum: datumInfo.datum,
         predictions: events,
-        attribution: [...new Set([station.attribution, modelStation.attribution].filter(Boolean))].join(" ") ||
-          "Slackwater database (https://github.com/openwatersio/slackwater-database)",
+        attribution: attribution || "Slackwater database (https://github.com/openwatersio/slackwater-database)",
         license: station.license.type,
         license_url: station.license.url,
         model_type: station.type
       });
+      if (station.id !== modelStation.id) subordinateCount++;
     } catch (error) {
       errors++;
-      if (errors <= 20) {
+      if (errorExamples.length < 20) {
+        errorExamples.push(`${station.id}: ${error.message}`);
         console.warn(`Skipping ${station.id}: ${error.message}`);
       }
     }
 
     if ((index + 1) % 500 === 0 || index + 1 === accepted.length) {
       console.log(
-        `Checked ${index + 1}/${accepted.length} accepted records; ${output.length} added; ${excludedNoaa} NOAA duplicates excluded.`
+        `Checked ${index + 1}/${accepted.length} accepted records; ${output.length} added; ${excludedNoaa} NOAA duplicates excluded; ${errors} errors.`
       );
     }
   }
@@ -167,9 +208,11 @@ async function main() {
     window_end_utc: end.toISOString(),
     station_count: output.length,
     prediction_count: output.reduce((sum, station) => sum + station.predictions.length, 0),
+    subordinate_station_count: subordinateCount,
     excluded_noaa_duplicates: excludedNoaa,
-    skipped_without_model_or_datum: skipped,
+    skipped_without_usable_model_or_datum: skipped,
     prediction_errors: errors,
+    prediction_error_examples: errorExamples,
     source: "Open Waters Slackwater Tide Database and @slackwater/engine",
     commercial_use_only: true,
     stations: output
@@ -181,7 +224,7 @@ async function main() {
   await fs.rename(temp, OUTPUT);
 
   console.log(
-    `Wrote ${output.length} commercial-use Open Waters stations and ${document.prediction_count} high/low events. Excluded ${excludedNoaa} NOAA duplicates; skipped ${skipped} records without usable models/datums; prediction errors: ${errors}.`
+    `Wrote ${output.length} commercial-use Open Waters stations (${subordinateCount} subordinate) and ${document.prediction_count} high/low events. Excluded ${excludedNoaa} NOAA duplicates; skipped ${skipped} records without usable models/datums; prediction errors: ${errors}.`
   );
 }
 
