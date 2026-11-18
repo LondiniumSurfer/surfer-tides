@@ -54,26 +54,33 @@
         }
 
         if (!authorized) {
-            document.documentElement.innerHTML = `
-                <html>
-                <head>
-                    <title>Embedding not authorized</title>
-                </head>
-                <body style="
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    padding: 50px 20px;
-                ">
+            const blocker = document.createElement("div");
+
+            blocker.style.cssText = `
+                position: fixed;
+                inset: 0;
+                width: 100vw;
+                height: 100vh;
+                background: #ffffff;
+                z-index: 2147483647;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                font-family: Arial, sans-serif;
+            `;
+
+            blocker.innerHTML = `
+                <div>
                     <h2>Embedding not authorized</h2>
                     <p>This interactive tide map is available on SurferToday.</p>
                     <a href="https://www.surfertoday.com/" target="_blank">
                         Visit SurferToday
                     </a>
-                </body>
-                </html>
+                </div>
             `;
 
-            throw new Error("Unauthorized embedding blocked");
+            document.body.appendChild(blocker);
         }
     }
 })();
