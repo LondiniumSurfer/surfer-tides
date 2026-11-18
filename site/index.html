@@ -36,6 +36,43 @@
   </style>
 </head>
 <body>
+  <script>
+(function () {
+    const allowedDomains = [
+        "www.surfertoday.com",
+        "surfertoday.com"
+    ];
+
+    if (window.self !== window.top) {
+        try {
+            const referrer = new URL(document.referrer);
+            const allowed = allowedDomains.includes(referrer.hostname);
+
+            if (!allowed) {
+                document.body.innerHTML = `
+                    <div style="
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding: 50px 20px;
+                    ">
+                        <h2>Embedding not authorized</h2>
+                        <p>This interactive tide map is available on SurferToday.</p>
+                        <a href="https://www.surfertoday.com/"
+                           target="_blank">
+                            Visit SurferToday
+                        </a>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            document.body.innerHTML = `
+                <h2>Embedding not authorized</h2>
+                <p>This interactive tide map is available on SurferToday.</p>
+            `;
+        }
+    }
+})();
+</script>
 <div class="tide-app">
   <div class="toolbar">
     <input id="station-search" type="search" placeholder="Search station, NOAA ID, country or region…" aria-label="Search tide stations">
