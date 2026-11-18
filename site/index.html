@@ -1,46 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <script>
-(function () {
-    const allowedDomains = [
-        "www.surfertoday.com",
-        "surfertoday.com"
-    ];
-
-    if (window.self !== window.top) {
-        let authorized = false;
-
-        try {
-            authorized = allowedDomains.includes(
-                new URL(document.referrer).hostname
-            );
-        } catch (e) {}
-
-        if (!authorized) {
-            document.open();
-            document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Embedding not authorized</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1">
-                </head>
-                <body style="font-family:Arial,sans-serif;text-align:center;padding:50px 20px;">
-                    <h2>Embedding not authorized</h2>
-                    <p>This interactive tide map is available on SurferToday.</p>
-                    <a href="https://www.surfertoday.com/" target="_blank">
-                        Visit SurferToday
-                    </a>
-                </body>
-                </html>
-            `);
-            document.close();
-            window.stop();
-        }
-    }
-})();
-</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Tide Stations | SurferToday</title>
@@ -50,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <style>
-    :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; }
+    :root { color-scheme: light; font-family: Roboto, Arial, Helvetica, sans-serif; }
     * { box-sizing: border-box; }
     body { margin: 0; color: #252525; background: #fff; }
     .tide-app { width: 100%; }
@@ -87,7 +47,7 @@
   <div id="map" role="application" aria-label="Interactive global tide station map"></div>
   <div class="map-note">
     Tide predictions combine NOAA CO-OPS official predictions with harmonic predictions calculated using the Open Waters Slackwater database and engine.
-    Times are shown in your browser's local time or UTC. Heights are in metres relative to the datum identified for each station.
+    Times are shown in your browser's local time or UTC. Heights are in meters relative to the datum identified for each station.
     Predictions are astronomical forecasts, not live water-level observations, and do not account for weather or storm surge.
     Map tiles © OpenStreetMap contributors.
   </div>
