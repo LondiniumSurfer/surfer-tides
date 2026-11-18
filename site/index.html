@@ -74,7 +74,7 @@
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
 
-  const watermark = L.control({ position: 'bottomright' });
+  const watermark = L.control({ position: 'bottomleft' });
   watermark.onAdd = function () {
     const div = L.DomUtil.create('div', 'surfertoday-watermark');
     div.innerHTML = '<a href="https://www.surfertoday.com/" target="_blank" rel="noopener">© SurferToday.com — All rights reserved</a>';
