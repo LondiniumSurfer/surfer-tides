@@ -77,7 +77,7 @@
   const watermark = L.control({ position: 'bottomright' });
   watermark.onAdd = function () {
     const div = L.DomUtil.create('div', 'surfertoday-watermark');
-    div.innerHTML = '<a href="https://www.surfertoday.com/" target="_blank" rel="noopener">SurferToday.com</a>';
+    div.innerHTML = '<a href="https://www.surfertoday.com/" target="_blank" rel="noopener">© SurferToday.com — All rights reserved</a>';
     L.DomEvent.disableClickPropagation(div);
     return div;
   };
