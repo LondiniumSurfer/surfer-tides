@@ -1,6 +1,46 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script>
+(function () {
+    const allowedDomains = [
+        "www.surfertoday.com",
+        "surfertoday.com"
+    ];
+
+    if (window.self !== window.top) {
+        let authorized = false;
+
+        try {
+            authorized = allowedDomains.includes(
+                new URL(document.referrer).hostname
+            );
+        } catch (e) {}
+
+        if (!authorized) {
+            document.open();
+            document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Embedding not authorized</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                </head>
+                <body style="font-family:Arial,sans-serif;text-align:center;padding:50px 20px;">
+                    <h2>Embedding not authorized</h2>
+                    <p>This interactive tide map is available on SurferToday.</p>
+                    <a href="https://www.surfertoday.com/" target="_blank">
+                        Visit SurferToday
+                    </a>
+                </body>
+                </html>
+            `);
+            document.close();
+            window.stop();
+        }
+    }
+})();
+</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Tide Stations | SurferToday</title>
@@ -36,55 +76,7 @@
   </style>
 </head>
 <body>
- <script>
-(function () {
-    const allowedDomains = [
-        "www.surfertoday.com",
-        "surfertoday.com"
-    ];
 
-    if (window.self !== window.top) {
-        let authorized = false;
-
-        try {
-            const referrer = new URL(document.referrer);
-            authorized = allowedDomains.includes(referrer.hostname);
-        } catch (e) {
-            authorized = false;
-        }
-
-        if (!authorized) {
-            const blocker = document.createElement("div");
-
-            blocker.style.cssText = `
-                position: fixed;
-                inset: 0;
-                width: 100vw;
-                height: 100vh;
-                background: #ffffff;
-                z-index: 2147483647;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-                font-family: Arial, sans-serif;
-            `;
-
-            blocker.innerHTML = `
-                <div>
-                    <h2>Embedding not authorized</h2>
-                    <p>This interactive tide map is available on SurferToday.</p>
-                    <a href="https://www.surfertoday.com/" target="_blank">
-                        Visit SurferToday
-                    </a>
-                </div>
-            `;
-
-            document.body.appendChild(blocker);
-        }
-    }
-})();
-</script>
 <div class="tide-app">
   <div class="toolbar">
     <input id="station-search" type="search" placeholder="Search station, NOAA ID, country or region…" aria-label="Search tide stations">
