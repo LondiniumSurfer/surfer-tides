@@ -29,6 +29,17 @@
     .tide-error { color:#9a3412; font-size:12px; line-height:1.45; }
     .attribution { margin-top:9px; padding-top:7px; border-top:1px solid #e5e7eb; color:#667085; font-size:10px; line-height:1.4; }
     .leaflet-popup-content { min-width:230px; }
+    .surfertoday-watermark {
+      background:rgba(255,255,255,.78);
+      padding:5px 8px;
+      border-radius:4px;
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.15px;
+      box-shadow:0 1px 4px rgba(0,0,0,.18);
+    }
+    .surfertoday-watermark a { color:#183b56; text-decoration:none; }
+    .surfertoday-watermark a:hover { text-decoration:underline; }
     @media (max-width:600px) {
       #map { height:68vh; min-height:430px; }
       .status { width:100%; margin-left:0; }
@@ -62,6 +73,15 @@
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
+
+  const watermark = L.control({ position: 'bottomright' });
+  watermark.onAdd = function () {
+    const div = L.DomUtil.create('div', 'surfertoday-watermark');
+    div.innerHTML = '<a href="https://www.surfertoday.com/" target="_blank" rel="noopener">SurferToday.com</a>';
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  watermark.addTo(map);
 
   const clusters = L.markerClusterGroup({
     chunkedLoading: true, maxClusterRadius: 48,
